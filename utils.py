@@ -1,4 +1,5 @@
 # really bad functions name and docstrings for now
+import pandas as pd
 
 def foo(d: dict, l_filter: list[str]) -> dict:
     
@@ -21,3 +22,8 @@ def foo1(d: dict) -> dict:
     """
     
     return {k:(v if not k in ['genres', 'demographics'] else [i['name'] for i in v]) for k,v in d.items()}
+
+
+def pandas_explode(df: pd.DataFrame, column_name: str) -> tuple[pd.DataFrame, list[str]]:
+    df = df.join(pd.crosstab((s:=df[column_name].explode()).index, s))
+    return df, df[column_name].explode().unique()
