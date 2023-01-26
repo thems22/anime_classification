@@ -1,7 +1,10 @@
-from typing import Any
+from typing import Any, Tuple
 import requests
-from constants import QUERY
+from ani_list_queries.queries import QUERY_USER, QUERY
 import time
+import pandas as pd
+import numpy as np
+from utils import pandas_explode
 
 class AniList:
     
@@ -71,3 +74,38 @@ class AniList:
         data = self.get_json(None)
         return data['data']['Page']['media']
     
+    
+class AniListUser:
+    
+    variables = {'name': ''}
+    
+    def __init__(self, user_name: str = 'thems22') -> None:
+        self.variables.update({'name': user_name})
+        pass
+    
+    def get_json(self) -> dict:
+        return requests.post('https://graphql.anilist.co', json={'query': QUERY_USER, 'variables': self.variables}).json()
+    
+    def get_dfs(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        data = self.get_json()
+        watched = data['data']['MediaListCollection']['lists'][0]['entries']
+        plan_to_watch = data['data']['MediaListCollection']['lists'][1]['entries']
+        return self.refined_data(watched), self.refined_data(plan_to_watch)
+    
+    def refined_data(self, data) -> pd.DataFrame:
+        necessary_data = {'title': [], 'tags': [], 'genres': [], 'score': [], 'description': []}
+        for l in data:
+            l_inside = l['media']
+            score = l['score']
+            necessary_data['score'].append(score)
+            for key, item in l_inside.items():
+                if key in ['title', 'tags', 'genres', 'description']:
+                    necessary_data[key].append(item)
+
+        df_anilist = pd.DataFrame(necessary_data)
+        df_anilist['tags'] = df_anilist['tags'].apply(lambda x: list(filter(None, [i['name'] if i['rank']>70 else None for i in x])))
+        df_anilist = df_anilist.join(df_anilist['title'].apply(pd.Series))
+        df_anilist = df_anilist.drop(columns='title')
+        df_anilist, _ = pandas_explode(df_anilist, 'tags')
+        
+        return df_anilist
