@@ -6,7 +6,8 @@ from sklearn.preprocessing import KBinsDiscretizer
 
 # TODO: add more methods to select tags, and one method that merges more than one tag in a new feature.
 
-def group_generator(scores: pd.Series, n_groups: int = 3):
+def group_generator(scores: pd.Series,
+                    n_groups: int = 3):
 
     """
     The first step of our problem will always be something like this:
@@ -16,7 +17,9 @@ def group_generator(scores: pd.Series, n_groups: int = 3):
     bins = KBinsDiscretizer(n_bins=n_groups, strategy='quantile', encode='ordinal')
     return bins.fit_transform(scores.values)
 
-def lasso_method(X: pd.DataFrame, y: pd.Series, n_features: int = 15, verbose: bool = False, remove_less_than: int = 0):
+def lasso_method(X: pd.DataFrame, y: pd.Series, 
+                 n_features: int = 15, verbose: bool = False, 
+                 remove_less_than: int = 0):
 
     """
     the second step of our problem will always be around of reducing the number of features.

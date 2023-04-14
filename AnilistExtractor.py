@@ -1,11 +1,12 @@
 from typing import Any, Literal, Tuple
 import time
 import pandas as pd
+import numpy as np
 import requests
 from ani_list_queries.queries import QUERY_USER, QUERY
 
 from utils import pandas_explode
-import pprint
+
 class AniList:
 
     """
@@ -82,8 +83,9 @@ class AniListUser:
 
     variables = {'name': ''}
 
-    def __init__(self, user_name: str = 'thems22') -> None:
-        self.variables.update({'name': user_name})
+    def __init__(self, user_name: str = 'thems22', mediatype: Literal['ANIME', 'MANGA'] = 'ANIME') -> None:
+        self.variables.update({'name': user_name,
+                               'type': mediatype})
 
     def get_json(self) -> dict:
 
@@ -106,31 +108,36 @@ class AniListUser:
         status_data = dict()
         for num, lst in enumerate(data['data']['MediaListCollection']['lists']):
             status_data[lst['entries'][0]['status']] = num
-        watched = data['data']['MediaListCollection']['lists'][status_data['COMPLETED']]['entries']
-        plan_to_watch = data['data']['MediaListCollection']['lists'][status_data['PLANNING']]['entries']
-        try:
-            dropped = data['data']['MediaListCollection']['lists'][status_data['DROPPED']]['entries']
-        except:
-            return self.refined_data(watched), self.refined_data(plan_to_watch)
-        return self.refined_data(watched), self.refined_data(plan_to_watch), self.refined_data(dropped)
+        df = pd.DataFrame()
+        for key, value in status_data.items():
+            entries = data['data']['MediaListCollection']['lists'][value]['entries']
+            if df.empty:
+                df = self.refined_data(entries, key)
+                continue
+            df = pd.concat([df, self.refined_data(entries, key)], ignore_index=True)
+        df['english'] = np.where(df['english'].isnull(), df['romaji'], df['english'])
+        df = df.fillna(0)
+        return df.drop(columns=['tags', 'genres', 'description', 'native'])
 
     # TODO: add a little more of type hinting to the data variable.
     def refined_data(self, data: list[
                                       dict[Literal['media'], dict]
-                                      ]) -> pd.DataFrame:
+                                      ], value: str) -> pd.DataFrame:
 
         """
         Get the useful data from the json.
         """
 
-        necessary_data = {'title': [], 'tags': [], 'genres': [], 'score': [], 'description': []}
+        necessary_data = {'title': [], 'tags': [], 'genres': [],
+                          'score': [], 'description': [], 'popularity': [],
+                          'averageScore': [], 'meanScore': []}
         # need to change this
         for lst in data:
             l_inside = lst['media']
             score = lst['score']
             necessary_data['score'].append(score)
             for key, item in l_inside.items():
-                if key in ['title', 'tags', 'genres', 'description']:
+                if key in ['title', 'tags', 'genres', 'description', 'popularity', 'averageScore', 'meanScore']:
                     necessary_data[key].append(item)
 
         df_anilist = pd.DataFrame(necessary_data)
@@ -142,7 +149,8 @@ class AniListUser:
         df_anilist = df_anilist.drop(columns='title')
         df_anilist, _ = pandas_explode(df_anilist, 'tags')
         df_anilist, _ = pandas_explode(df_anilist, 'genres')
-        
+        df_anilist['status'] = value
+
         return df_anilist
 
     def bad_name_function(self, tag: dict[str, Any], value=70) -> list[str]:
